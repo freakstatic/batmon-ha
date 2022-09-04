@@ -21,7 +21,7 @@ def _jbd_command(command: int):
 class JbdBt(BtBms):
     UUID_RX = '0000ff01-0000-1000-8000-00805f9b34fb'
     UUID_TX = '0000ff02-0000-1000-8000-00805f9b34fb'
-    TIMEOUT = 8
+    TIMEOUT = 20
 
     def __init__(self, address, **kwargs):
         super().__init__(address, **kwargs)
@@ -97,7 +97,12 @@ class JbdBt(BtBms):
         voltages = [(int.from_bytes(buf[4 + i * 2:i * 2 + 6], 'big')) for i in range(num_cell)]
         return voltages
 
+    async def disableOutput(self):
+        await self.client.write_gatt_char(self.UUID_TX, data=bytes.fromhex('DD5AE1020002FF1B77'))
 
+
+    async def enableOutput(self):
+        await self.client.write_gatt_char(self.UUID_TX, data=bytes.fromhex('DD5AE1020000FF1D77'))
 
 async def main():
     mac_address = 'A3161184-6D54-4B9E-8849-E755F10CEE12'
@@ -108,6 +113,7 @@ async def main():
     await bms.connect()
     voltages = await bms.fetch_voltages()
     print(voltages)
+
     # sample = await bms.fetch()
     # print(sample)
     await bms.disconnect()

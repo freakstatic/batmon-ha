@@ -5,6 +5,8 @@ import bmslib.bt
 from bmslib.pwmath import Integrator
 from bmslib.util import get_logger
 from mqtt_util import publish_sample, publish_cell_voltages, publish_temperatures, publish_hass_discovery
+import paho.mqtt.subscribe as subscribe
+import asyncio
 
 logger = get_logger(verbose=False)
 
@@ -21,8 +23,38 @@ class BmsSampler():
         self.invert_current = invert_current
         self.num_samples = 0
 
+        mqtt_client.on_message = self.on_message
+        mqtt_client.subscribe("battery1/output/")
+        mqtt_client.loop_start()
+
     async def __call__(self):
         return await self.sample()
+
+    def on_message(self, client, userdata, msg):
+        if not self.bms.client.is_connected:
+            return
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError as e:
+            if str(e).startswith('There is no current event loop in thread'):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            else:
+                raise
+
+        loop = asyncio.get_event_loop()
+
+        message_content = msg.payload.decode('utf-8')
+        try:
+            if message_content == '1':
+                coroutine = self.bms.enableOutput()
+            else:
+                coroutine = self.bms.disableOutput()
+            loop.run_until_complete(coroutine)
+        except Exception:
+            pass
+        print(f"Message received [{msg.topic}]: {msg.payload}")
 
     async def sample(self):
         bms = self.bms
